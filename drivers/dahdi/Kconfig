@@ -71,7 +71,7 @@ config DAHDI_ECHOCAN_HPEC
 
 config DAHDI_WCT4XXP
 	tristate "Digium Wildcard dual- and quad-T1/E1/J1 Support"
-	depends on DAHDI && PCI
+	depends on DAHDI_OCT612X
 	default DAHDI
 	---help---
 	  This driver provides support for the following Digium
@@ -99,9 +99,20 @@ config DAHDI_TRANSCODE
 
 	  If unsure, say Y.
 
+config DAHDI_OCT612X
+  tristate "Octastic 612 support"
+  depends on DAHDI_TRANSCODE && PCI
+  default DAHDI
+  ---help---
+    Octastic Drivers.
+
+    This is required for most Dahdi Hardware.
+
+	  If unsure, say Y.
+
 config DAHDI_WCTC4XXP
 	tristate "Digium Wildcard TC400B Support"
-	depends on DAHDI_TRANSCODE && PCI
+	depends on DAHDI_OCT612X
 	default DAHDI
 	---help---
 	  This driver provides support for the Digium Wildcard TC400B.
