@@ -54,10 +54,12 @@ obj-m += $(DAHDI_MODULES_EXTRA)
 # If you want to build OSLEC, include the code in the standard location:
 # drivers/staging/echo . The DAHDI OSLEC echo canceller will be built as
 # well:
-ifneq (,$(wildcard $(src)/../staging/echo/echo.c))
+#ifneq (,$(wildcard $(src)/../misc/echo/echo.c))
+#
+# xrobau 2020-02-09: Note that oslec is now in drivers/misc, not drivers/staging
 obj-m += dahdi_echocan_oslec.o
-obj-m += ../staging/echo/echo.o
-endif
+#obj-m += ../staging/echo/echo.o
+#endif
 
 CFLAGS_MODULE += -I$(DAHDI_INCLUDE) -I$(src) -Wno-format-truncation
 

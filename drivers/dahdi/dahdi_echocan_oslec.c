@@ -31,7 +31,7 @@
 #include <linux/moduleparam.h>
 
 /* Fix this if OSLEC is elsewhere */
-#include "../staging/echo/oslec.h"
+#include "../drivers/misc/echo/oslec.h"
 //#include <linux/oslec.h>
 
 #include <dahdi/kernel.h>
