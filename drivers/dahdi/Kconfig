@@ -233,5 +233,12 @@ config DAHDI_DYNAMIC_LOC
 
 	  If unsure, say Y.
 
+config DAHDI_UA32XX
+  tristate "SGM UA32xx USB Device"
+  depends on DAHDI
+  default DAHDI
+  ---help---
+    Provides ua32xx driver
+
 
 source "drivers/dahdi/xpp/Kconfig"
