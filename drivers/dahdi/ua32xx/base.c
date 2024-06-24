@@ -50,13 +50,6 @@
 #include <dahdi/kernel.h>
 #include <dahdi/wctdm_user.h>
 
-void do_gettimeofday(struct timeval *tv) {
-  struct timespec64 ts;
-  ktime_get_real_ts64(&ts);
-  tv->tv_sec = ts.tv_sec;
-  tv->tv_usec = ts.tv_nsec/1000;
-}
-
 #include "proslic.h"
 #include "fxo_modes.h"
 
@@ -727,9 +720,7 @@ static int io_list_proc(struct ua32xx* ua)
 	struct list_head *pos,*tmp;
 	struct list_head *the_list = &ua->pkt_list->list;
 
-	struct timeval tv0,tv1;
-	unsigned long jif0,jif1;
-	unsigned int tv_us,pktl,pktn = 0;
+	unsigned int pktl,pktn = 0;
 	
 #if 0
 	if(ua->pkt_list->pkt_num){
@@ -756,13 +747,6 @@ static int io_list_proc(struct ua32xx* ua)
 		node->submited = 1;
 		spin_unlock(&ua->list_lock);
 		
-		if(iodebug){
-			if(ua->ifaces_index == 0){
-				do_gettimeofday(&tv0);
-				jif0 = jiffies;
-			}
-		}
-
 		res = oproto_io_sync_op(&ua->proto, node->op_pkt,ua->iowq_recvpkt);
 		if(res){
 			printk(UA32XX_NAME": %s line %d error %d!\n", __FUNCTION__, __LINE__, res);
@@ -770,18 +754,6 @@ static int io_list_proc(struct ua32xx* ua)
 			goto op_err;
 		}
 
-		if(iodebug){
-			if(ua->ifaces_index == 0){
-				jif1 = jiffies;
-				do_gettimeofday(&tv1);
-				tv_us = tv1.tv_usec > tv0.tv_usec ? (tv1.tv_usec - tv0.tv_usec) : (tv1.tv_usec - tv0.tv_usec + 1000000);
-			
-				printk(KERN_DEBUG "	list length %d, pkt %d, pkt_sn %d, contains %d regops, proc time %d (us), jiffies(%lu, %lu)\n",
-												 	ua->pkt_list->pkt_num, pktn, node->op_pkt->header.pkt_sn, node->op_pkt->header.op_num, tv_us, jif0, jif1);
-				pktn++;			
-			}
-		}
-	
 		res = pkt_comp_update(node,ua->iowq_recvpkt);
 		if(res){
 			printk(UA32XX_NAME": %s line %d error %d!\n", __FUNCTION__, __LINE__, res);
@@ -4616,11 +4588,16 @@ static ssize_t ua32xx_proc_read(struct file *file, char __user *buf, size_t coun
 	return rdlen;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 static struct file_operations proc_fops = {
 	.owner = THIS_MODULE,
 	.read = ua32xx_proc_read,
 };
-
+#else
+static struct proc_ops proc_fops = {
+	.proc_read = ua32xx_proc_read,
+};
+#endif
 
 static ssize_t ua32xx_led_write(struct file *file, const char __user *buf, size_t count, loff_t *f_pos)
 {
@@ -4713,10 +4690,16 @@ static ssize_t ua32xx_led_write(struct file *file, const char __user *buf, size_
 	return count;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 static struct file_operations led_fops = {
 	.owner = THIS_MODULE,
 	.write = ua32xx_led_write,
 };
+#else
+static struct proc_ops led_fops = {
+	.proc_write = ua32xx_led_write,
+};
+#endif
 
 static int register_led_chan(struct ua32xx* ua)
 {

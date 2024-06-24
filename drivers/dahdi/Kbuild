@@ -84,6 +84,7 @@ obj-m += dahdi_echocan_oslec.o
 #obj-m += ../staging/echo/echo.o
 #endif
 
+DAHDI_INCLUDE = include/uapi/dahdi/
 CFLAGS_MODULE += -I$(DAHDI_INCLUDE) -I$(src) -Wno-format-truncation
 
 # fix typo present in CentOS and RHEL 2.6.9 kernels

@@ -522,12 +522,20 @@ dcra_write_exit:
 }
 
 
+
 /* use this structure for all file operate */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 6, 0)
 static struct file_operations dcra_fops = {
 	.owner = THIS_MODULE,
 	.read = dcra_read,
 	.write = dcra_write,
 };
+#else
+static struct proc_ops dcra_fops = {
+        .proc_read = dcra_read,
+        .proc_write = dcra_write,
+};
+#endif
 
 static int __init dcra_init(void)
 {
