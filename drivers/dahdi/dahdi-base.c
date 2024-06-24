@@ -82,7 +82,17 @@
 
 #include "hpec/hpec_user.h"
 
+/* Linux kernel 5.16 and greater has removed user-space headers from the kernel include path */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+#include <asm/types.h>
+#elif defined RHEL_RELEASE_VERSION
+#if defined(RHEL_RELEASE_CODE) && LINUX_VERSION_CODE >= KERNEL_VERSION(5,14,0) && \
+              RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(9,1)
+#include <asm/types.h>
+#endif
+#else
 #include <stdbool.h>
+#endif
 
 #if defined(EMPULSE) && defined(EMFLASH)
 #error "You cannot define both EMPULSE and EMFLASH"
@@ -934,9 +944,12 @@ static int dahdi_seq_show(struct seq_file *sfile, void *data)
 	if (!s)
 		return -ENODEV;
 
-	if (s->name)
+	if ( strlen(s->name) )
 		seq_printf(sfile, "Span %d: %s ", s->spanno, s->name);
-	if (s->desc)
+	else
+		seq_printf(sfile, "Span %d: ", s->spanno);
+
+	if ( strlen(s->desc) )
 		seq_printf(sfile, "\"%s\"", s->desc);
 	else
 		seq_printf(sfile, "\"\"");
@@ -975,9 +988,11 @@ static int dahdi_seq_show(struct seq_file *sfile, void *data)
 	for (x = 0; x < s->channels; x++) {
 		struct dahdi_chan *chan = s->chans[x];
 
-		if (chan->name)
+		if ( strlen(chan->name) )
 			seq_printf(sfile, "\t%4d %s ", chan->channo,
 					chan->name);
+		else
+			seq_printf(sfile, "\t%4d ", chan->channo);
 
 		if (chan->sig) {
 			if (chan->sig == DAHDI_SIG_SLAVE)
@@ -2147,7 +2162,11 @@ static int dahdi_xmit(struct sk_buff *skb, struct net_device *dev)
 			   some space for us */
 			ss->outwritebuf = oldbuf;
 		}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+		netif_trans_update(dev);
+#else
 		dev->trans_start = jiffies;
+#endif
 		stats->tx_packets++;
 		stats->tx_bytes += ss->writen[oldbuf];
 		print_debug_writebuf(ss, skb, oldbuf);
@@ -4351,7 +4370,7 @@ static int dahdi_ioctl_getparams(struct file *file, unsigned long data)
 	param.pulsebreaktime = chan->pulsebreaktime;
 	param.pulseaftertime = chan->pulseaftertime;
 	param.spanno = (chan->span) ? chan->span->spanno : 0;
-	strlcpy(param.name, chan->name, sizeof(param.name));
+	strscpy(param.name, chan->name, sizeof(param.name));
 	param.chanpos = chan->chanpos;
 	param.sigcap = chan->sigcap;
 	/* Return current law */
@@ -4439,8 +4458,8 @@ static int dahdi_ioctl_spanstat(struct file *file, unsigned long data)
 
 	spaninfo.spanno = s->spanno; /* put the span # in here */
 	spaninfo.totalspans = span_count();
-	strlcpy(spaninfo.desc, s->desc, sizeof(spaninfo.desc));
-	strlcpy(spaninfo.name, s->name, sizeof(spaninfo.name));
+	strscpy(spaninfo.desc, s->desc, sizeof(spaninfo.desc));
+	strscpy(spaninfo.name, s->name, sizeof(spaninfo.name));
 	spaninfo.alarms = s->alarms;		/* get alarm status */
 	spaninfo.rxlevel = s->rxlevel;	/* get rx level */
 	spaninfo.txlevel = s->txlevel;	/* get tx level */
@@ -4467,18 +4486,18 @@ static int dahdi_ioctl_spanstat(struct file *file, unsigned long data)
 	spaninfo.lineconfig = s->lineconfig;
 	spaninfo.irq = 0;
 	spaninfo.linecompat = s->linecompat;
-	strlcpy(spaninfo.lboname, dahdi_lboname(s->lbo),
+	strscpy(spaninfo.lboname, dahdi_lboname(s->lbo),
 			  sizeof(spaninfo.lboname));
 	if (s->parent->manufacturer) {
-		strlcpy(spaninfo.manufacturer, s->parent->manufacturer,
+		strscpy(spaninfo.manufacturer, s->parent->manufacturer,
 			sizeof(spaninfo.manufacturer));
 	}
 	if (s->parent->devicetype) {
-		strlcpy(spaninfo.devicetype, s->parent->devicetype,
+		strscpy(spaninfo.devicetype, s->parent->devicetype,
 			sizeof(spaninfo.devicetype));
 	}
 	if (s->parent->location) {
-		strlcpy(spaninfo.location, s->parent->location,
+		strscpy(spaninfo.location, s->parent->location,
 			sizeof(spaninfo.location));
 	}
 	if (s->spantype) {
@@ -4497,11 +4516,11 @@ static int dahdi_ioctl_spanstat(struct file *file, unsigned long data)
 		const char *st = dahdi_spantype2str(s->spantype);
 		switch (s->spantype) {
 		case SPANTYPE_DIGITAL_BRI_NT:
-			strlcpy(spaninfo.spantype, "NT",
+			strscpy(spaninfo.spantype, "NT",
 					sizeof(spaninfo.spantype));
 			break;
 		case SPANTYPE_DIGITAL_BRI_TE:
-			strlcpy(spaninfo.spantype, "TE",
+			strscpy(spaninfo.spantype, "TE",
 					sizeof(spaninfo.spantype));
 			break;
 		default:
@@ -4511,7 +4530,7 @@ static int dahdi_ioctl_spanstat(struct file *file, unsigned long data)
 			 * so no backward compatibility for this
 			 * broken interface.
 			 */
-			strlcpy(spaninfo.spantype, st,
+			strscpy(spaninfo.spantype, st,
 					sizeof(spaninfo.spantype));
 			break;
 		}
@@ -4560,10 +4579,10 @@ static int dahdi_ioctl_spanstat_v1(struct file *file, unsigned long data)
 	spaninfo_v1.spanno = s->spanno; /* put the span # in here */
 	spaninfo_v1.totalspans = 0;
 	spaninfo_v1.totalspans = span_count();
-	strlcpy(spaninfo_v1.desc,
+	strscpy(spaninfo_v1.desc,
 			  s->desc,
 			  sizeof(spaninfo_v1.desc));
-	strlcpy(spaninfo_v1.name,
+	strscpy(spaninfo_v1.name,
 			  s->name,
 			  sizeof(spaninfo_v1.name));
 	spaninfo_v1.alarms = s->alarms;
@@ -4585,25 +4604,25 @@ static int dahdi_ioctl_spanstat_v1(struct file *file, unsigned long data)
 	spaninfo_v1.lineconfig = s->lineconfig;
 	spaninfo_v1.irq = 0;
 	spaninfo_v1.linecompat = s->linecompat;
-	strlcpy(spaninfo_v1.lboname,
+	strscpy(spaninfo_v1.lboname,
 			  dahdi_lboname(s->lbo),
 			  sizeof(spaninfo_v1.lboname));
 
 	if (s->parent->manufacturer) {
-		strlcpy(spaninfo_v1.manufacturer, s->parent->manufacturer,
+		strscpy(spaninfo_v1.manufacturer, s->parent->manufacturer,
 			sizeof(spaninfo_v1.manufacturer));
 	}
 
 	if (s->parent->devicetype) {
-		strlcpy(spaninfo_v1.devicetype, s->parent->devicetype,
+		strscpy(spaninfo_v1.devicetype, s->parent->devicetype,
 			sizeof(spaninfo_v1.devicetype));
 	}
 
-	strlcpy(spaninfo_v1.location, s->parent->location,
+	strscpy(spaninfo_v1.location, s->parent->location,
 		sizeof(spaninfo_v1.location));
 
 	if (s->spantype) {
-		strlcpy(spaninfo_v1.spantype,
+		strscpy(spaninfo_v1.spantype,
 				  dahdi_spantype2str(s->spantype),
 				  sizeof(spaninfo_v1.spantype));
 	}
@@ -5277,7 +5296,7 @@ static int dahdi_ioctl_attach_echocan(unsigned long data)
 			 * always use it instead of any configured software
 			 * echocan. This matches the behavior in dahdi 2.4.1.2
 			 * and earlier releases. */
-			strlcpy(ae.echocan, hwec_def_name, sizeof(ae.echocan));
+			strscpy(ae.echocan, hwec_def_name, sizeof(ae.echocan));
 
 		} else if (strcasecmp(ae.echocan, hwec_def_name) != 0) {
 			chan_dbg(GENERAL, chan,
@@ -5376,7 +5395,7 @@ static int dahdi_ioctl_get_version(unsigned long data)
 	bool have_hwec = dahdi_any_hwec_available();
 
 	memset(&vi, 0, sizeof(vi));
-	strlcpy(vi.version, dahdi_version, sizeof(vi.version));
+	strscpy(vi.version, dahdi_version, sizeof(vi.version));
 	spin_lock(&ecfactory_list_lock);
 	list_for_each_entry(cur, &ecfactory_list, list) {
 		const char * const ec_name = cur->ec->get_name(NULL);
@@ -5632,7 +5651,7 @@ static int ioctl_dahdi_dial(struct dahdi_chan *chan, unsigned long data)
 			rv = -EBUSY;
 			break;
 		}
-		strlcpy(chan->txdialbuf + strlen(chan->txdialbuf), tdo->dialstr,
+		strscpy(chan->txdialbuf + strlen(chan->txdialbuf), tdo->dialstr,
 			DAHDI_MAX_DTMF_BUF - strlen(chan->txdialbuf));
 		if (!chan->dialing) {
 			chan->dialing = 1;
@@ -7933,6 +7952,7 @@ static inline void __dahdi_process_getaudio_chunk(struct dahdi_chan *ss, unsigne
 			txb[0] = DAHDI_LIN2X(0, ms);
 			memset(txb + 1, txb[0], DAHDI_CHUNKSIZE - 1);
 			/* fallthrough */
+			fallthrough;
 		case DAHDI_CONF_CONF:	/* Normal conference mode */
 			if (is_pseudo_chan(ms)) /* if pseudo-channel */
 			   {
@@ -7957,6 +7977,7 @@ static inline void __dahdi_process_getaudio_chunk(struct dahdi_chan *ss, unsigne
 				break;
 		 	   }
 			/* fall through */
+			fallthrough;
 		case DAHDI_CONF_CONFMON:	/* Conference monitor mode */
 			if (ms->confmode & DAHDI_CONF_LISTENER) {
 				/* Subtract out last sample written to conf */
@@ -8496,6 +8517,7 @@ static void __dahdi_hooksig_pvt(struct dahdi_chan *chan, enum dahdi_rxsig rxsig)
 		}
 #endif
 		/* fallthrough */
+		fallthrough;
 	   case DAHDI_SIG_FXSGS:  /* FXS Groundstart */
 		if (rxsig == DAHDI_RXSIG_ONHOOK) {
 			chan->ringdebtimer = RING_DEBOUNCE_TIME;
@@ -8515,6 +8537,7 @@ static void __dahdi_hooksig_pvt(struct dahdi_chan *chan, enum dahdi_rxsig rxsig)
 			}
 		}
 		/* fallthrough */
+		fallthrough;
 	   case DAHDI_SIG_FXOLS: /* FXO Loopstart */
 	   case DAHDI_SIG_FXOKS: /* FXO Kewlstart */
 		switch(rxsig) {
@@ -8615,6 +8638,7 @@ void dahdi_rbsbits(struct dahdi_chan *chan, int cursig)
 			break;
 		}
 		/* Fall through */
+		fallthrough;
 	    case DAHDI_SIG_EM_E1:
 	    case DAHDI_SIG_FXOLS: /* FXO Loopstart */
 	    case DAHDI_SIG_FXOKS: /* FXO Kewlstart */
@@ -9062,6 +9086,7 @@ static inline void __dahdi_process_putaudio_chunk(struct dahdi_chan *ss, unsigne
 				break;
 			   }
 			/* fall through */
+			fallthrough;
 		case DAHDI_CONF_CONFANN:  /* Conference with announce */
 			if (ms->confmode & DAHDI_CONF_TALKER) {
 				/* Store temp value */
@@ -10101,6 +10126,7 @@ static void coretimer_func(TIMER_DATA_TYPE unused)
 static void coretimer_init(void)
 {
 	timer_setup(&core_timer.timer, coretimer_func, 0);
+
 	core_timer.start_interval = ktime_get();
 	atomic_set(&core_timer.count, 0);
 	atomic_set(&core_timer.shutdown, 0);

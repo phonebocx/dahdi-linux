@@ -54,7 +54,17 @@ Tx Gain - W/Pre-Emphasis: -23.99 to 0.00 db
 #include <linux/crc32.h>
 #include <linux/slab.h>
 
+/* Linux kernel 5.16 and greater has removed user-space headers from the kernel include path */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+#include <asm/types.h>
+#elif defined RHEL_RELEASE_VERSION
+#if defined(RHEL_RELEASE_CODE) && LINUX_VERSION_CODE >= KERNEL_VERSION(5,14,0) && \
+              RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(9,1)
+#include <asm/types.h>
+#endif
+#else
 #include <stdbool.h>
+#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 /* Define this if you would like to load the modules in parallel.  While this
@@ -219,7 +229,11 @@ mod_hooksig(struct wctdm *wc, struct wctdm_module *mod, enum dahdi_rxsig rxsig)
 }
 
 struct wctdm *ifaces[WC_MAX_IFACES];
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
 DEFINE_SEMAPHORE(ifacelock);
+#else
+DEFINE_SEMAPHORE(ifacelock, 1);
+#endif
 
 static void wctdm_release(struct wctdm *wc);
 
@@ -1956,12 +1970,14 @@ wctdm_check_battery_lost(struct wctdm *wc, struct wctdm_module *const mod)
 	case BATTERY_UNKNOWN:
 		mod_hooksig(wc, mod, DAHDI_RXSIG_ONHOOK);
 		/* fallthrough */
+		fallthrough;
 	case BATTERY_PRESENT:
 		fxo->battery_state = BATTERY_DEBOUNCING_LOST;
 		fxo->battdebounce_timer = wc->framecount + battdebounce;
 		break;
 	case BATTERY_DEBOUNCING_LOST_FROM_PRESENT_ALARM:
 		/* fallthrough */
+		fallthrough;
 	case BATTERY_DEBOUNCING_LOST:
 		if (time_after(wc->framecount, fxo->battdebounce_timer)) {
 			if (debug) {
@@ -2066,6 +2082,7 @@ wctdm_check_battery_present(struct wctdm *wc, struct wctdm_module *const mod)
 	case BATTERY_UNKNOWN:
 		mod_hooksig(wc, mod, DAHDI_RXSIG_OFFHOOK);
 		/* fallthrough */
+		fallthrough;
 	case BATTERY_LOST:
 		fxo->battery_state = BATTERY_DEBOUNCING_PRESENT;
 		fxo->battdebounce_timer = wc->framecount + battdebounce;
